@@ -22,6 +22,37 @@ final class ProductControllerTest extends WebTestCase
         $this->client = null;
     }
 
+    public function testRemoveNewlyCreatedProduct(): void
+    {
+        $testProductData = [
+            'title' => 'Go',
+            'price' => 199,
+        ];
+        $createProductResponseContent = $this->createProductJsonRequest($testProductData);
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+        $this->assertArrayHasKey('id', $createProductResponseContent);
+
+        $this->deleteProductJsonRequest($createProductResponseContent['id']);
+        $this->assertResponseStatusCodeSame(Response::HTTP_NO_CONTENT);
+    }
+
+    public function testSecondRemovalRequestToTheSameProductRespondWithNotFound(): void
+    {
+        $testProductData = [
+            'title' => 'Go',
+            'price' => 199,
+        ];
+        $createProductResponseContent = $this->createProductJsonRequest($testProductData);
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+        $this->assertArrayHasKey('id', $createProductResponseContent);
+
+        $this->deleteProductJsonRequest($createProductResponseContent['id']);
+        $this->assertResponseStatusCodeSame(Response::HTTP_NO_CONTENT);
+
+        $this->deleteProductJsonRequest($createProductResponseContent['id']);
+        $this->assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
     public function testCreateProduct(): void
     {
         $testProductData = [
@@ -176,11 +207,6 @@ final class ProductControllerTest extends WebTestCase
         $this->assertArrayHasKey($field, $response['errors']);
     }
 
-    /**
-     * @param array $payload
-     *
-     * @return mixed
-     */
     protected function createProductJsonRequest(array $payload): mixed
     {
         $this->client->request(
@@ -190,6 +216,16 @@ final class ProductControllerTest extends WebTestCase
                 'CONTENT_TYPE' => 'application/json',
             ],
             content: json_encode($payload)
+        );
+
+        return json_decode($this->client->getResponse()->getContent(), true);
+    }
+
+    protected function deleteProductJsonRequest(int $id): mixed
+    {
+        $this->client->request(
+            method: 'DELETE',
+            uri: sprintf('/api/products/%d', $id),
         );
 
         return json_decode($this->client->getResponse()->getContent(), true);
