@@ -1,0 +1,14 @@
+App\Request\ProductCreateRequest:
+  properties:
+    title:
+      - NotBlank: ~
+      - Type:
+          type: 'string'
+      - Length:
+          min: 2
+          max: 255
+    price:
+      - NotBlank: ~
+      - Type:
+          type: 'integer'
+      - PositiveOrZero: ~
