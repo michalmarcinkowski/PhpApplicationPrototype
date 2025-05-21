@@ -2,11 +2,26 @@
 
 namespace App\Tests\Controller;
 
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Response;
 
 final class ProductControllerTest extends WebTestCase
 {
+    protected ?KernelBrowser $client = null;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->client = self::createClient();
+    }
+
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+        $this->client = null;
+    }
+
     public function testCreateProduct(): void
     {
         $testProductData = [
@@ -168,9 +183,7 @@ final class ProductControllerTest extends WebTestCase
      */
     protected function createProductJsonRequest(array $payload): mixed
     {
-        $client = ProductControllerTest::createClient();
-
-        $client->request(
+        $this->client->request(
             method: 'POST',
             uri: '/api/products',
             server: [
@@ -179,6 +192,6 @@ final class ProductControllerTest extends WebTestCase
             content: json_encode($payload)
         );
 
-        return json_decode($client->getResponse()->getContent(), true);
+        return json_decode($this->client->getResponse()->getContent(), true);
     }
 }
