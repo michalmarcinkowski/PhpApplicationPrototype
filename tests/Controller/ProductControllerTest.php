@@ -2,6 +2,8 @@
 
 namespace App\Tests\Controller;
 
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\Tools\SchemaTool;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Response;
@@ -14,6 +16,7 @@ final class ProductControllerTest extends WebTestCase
     {
         parent::setUp();
         $this->client = self::createClient();
+        $this->resetDb();
     }
 
     protected function tearDown(): void
@@ -22,7 +25,13 @@ final class ProductControllerTest extends WebTestCase
         $this->client = null;
     }
 
-    public function testRemoveNewlyCreatedProduct(): void
+    public function testCantDeleteNonExistingProduct(): void
+    {
+        $this->deleteProductJsonRequest(111);
+        $this->assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+        $this->assertResponseHeaderSame('Content-Type', 'application/json; charset=utf-8');
+    }
+    public function testDeleteNewlyCreatedProduct(): void
     {
         $testProductData = [
             'title' => 'Go',
@@ -36,7 +45,7 @@ final class ProductControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(Response::HTTP_NO_CONTENT);
     }
 
-    public function testSecondRemovalRequestToTheSameProductRespondWithNotFound(): void
+    public function testSecondDeletionRequestToTheSameProductRespondWithNotFound(): void
     {
         $testProductData = [
             'title' => 'Go',
@@ -51,6 +60,7 @@ final class ProductControllerTest extends WebTestCase
 
         $this->deleteProductJsonRequest($createProductResponseContent['id']);
         $this->assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+        $this->assertResponseHeaderSame('Content-Type', 'application/json; charset=utf-8');
     }
 
     public function testCreateProduct(): void
@@ -214,6 +224,7 @@ final class ProductControllerTest extends WebTestCase
             uri: '/api/products',
             server: [
                 'CONTENT_TYPE' => 'application/json',
+                'HTTP_ACCEPT' => 'application/json',
             ],
             content: json_encode($payload)
         );
@@ -226,8 +237,24 @@ final class ProductControllerTest extends WebTestCase
         $this->client->request(
             method: 'DELETE',
             uri: sprintf('/api/products/%d', $id),
+            server: [
+                'HTTP_ACCEPT' => 'application/json',
+            ],
         );
 
         return json_decode($this->client->getResponse()->getContent(), true);
+    }
+
+    protected function resetDb(): void
+    {
+        $container = self::getContainer();
+        /** @var EntityManagerInterface $entityManager */
+        $entityManager = $container->get('doctrine.orm.entity_manager');
+
+        $metadata = $entityManager->getMetadataFactory()->getAllMetadata();
+        $schemaTool = new SchemaTool($entityManager);
+
+        $schemaTool->dropDatabase();
+        $schemaTool->createSchema($metadata);
     }
 }
