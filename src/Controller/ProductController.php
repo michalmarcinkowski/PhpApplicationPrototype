@@ -53,7 +53,6 @@ final class ProductController extends AbstractController
             Response::HTTP_CREATED,
             [
                 'Content-Type' => 'application/json; charset=utf-8',
-#                'Location' => '/api/products/1',
         ]);
     }
 }

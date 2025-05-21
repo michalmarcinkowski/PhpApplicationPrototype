@@ -17,7 +17,6 @@ final class ProductControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
         $this->assertResponseHeaderSame('Content-Type', 'application/json; charset=utf-8');
-#        $this->assertResponseHeaderSame('Location', sprintf('/api/products/%d', $responseContent['id']));
 
         $this->assertArrayHasKey('id', $responseContent);
         $this->assertSame($testProductData['title'], $responseContent['title']);
@@ -34,7 +33,6 @@ final class ProductControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
         $this->assertResponseHeaderSame('Content-Type', 'application/json; charset=utf-8');
-#        $this->assertResponseHeaderSame('Location', sprintf('/api/products/%d', $responseContent['id']));
 
         $this->assertArrayHasKey('id', $responseContent);
         $this->assertSame($testProductData['title'], $responseContent['title']);
