@@ -67,7 +67,7 @@ final class CartControllerTest extends WebTestCase
     {
         $this->client->request(
             method: 'POST',
-            uri: '/api/carts',
+            uri: '/api/carts/',
             server: [
                 'HTTP_ACCEPT' => 'application/json',
             ],

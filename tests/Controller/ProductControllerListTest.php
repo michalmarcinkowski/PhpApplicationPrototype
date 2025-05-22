@@ -68,7 +68,7 @@ class ProductControllerListTest extends WebTestCase
     {
         $this->createFiveStandardProducts();
 
-        $this->client->request(method: 'GET', uri: '/api/products');
+        $this->client->request(method: 'GET', uri: '/api/products/');
 
         $this->assertResponseIsSuccessful();
         $this->assertResponseHeaderSame('Content-Type', 'application/json; charset=utf-8');
@@ -98,7 +98,7 @@ class ProductControllerListTest extends WebTestCase
         $this->createFiveStandardProducts();
         $pageNumber = 2;
 
-        $this->client->request(method: 'GET', uri: '/api/products?page=' . $pageNumber);
+        $this->client->request(method: 'GET', uri: '/api/products/?page=' . $pageNumber);
 
         $this->assertResponseIsSuccessful();
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
@@ -116,7 +116,7 @@ class ProductControllerListTest extends WebTestCase
      */
     public function testListProductsEmptyCatalog(): void
     {
-        $this->client->request(method: 'GET', uri: '/api/products');
+        $this->client->request(method: 'GET', uri: '/api/products/');
 
         $this->assertResponseIsSuccessful();
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
@@ -138,7 +138,7 @@ class ProductControllerListTest extends WebTestCase
         $numberOfProducts = 2;
         $this->createRandomProducts($numberOfProducts);
 
-        $this->client->request(method: 'GET', uri: '/api/products');
+        $this->client->request(method: 'GET', uri: '/api/products/');
 
         $this->assertResponseIsSuccessful();
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
@@ -162,7 +162,7 @@ class ProductControllerListTest extends WebTestCase
         $this->createFiveStandardProducts();
 
         // Request page 10, but there are only 2 pages
-        $this->client->request(method: 'GET', uri: '/api/products?page=10');
+        $this->client->request(method: 'GET', uri: '/api/products/?page=10');
 
         $this->assertResponseIsSuccessful();
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
@@ -181,14 +181,14 @@ class ProductControllerListTest extends WebTestCase
         $this->createFiveStandardProducts();
 
         // Test with page=0
-        $this->client->request(method: 'GET', uri: '/api/products?page=0');
+        $this->client->request(method: 'GET', uri: '/api/products/?page=0');
         $this->assertResponseIsSuccessful();
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
         $this->assertSame(1, $responseData['meta']['pagination']['current_page']); // Should be adjusted to 1
         $this->assertSame('Fallout', $responseData['data'][0]['title']);
 
         // Test with page=-5
-        $this->client->request(method: 'GET', uri: '/api/products?page=-5');
+        $this->client->request(method: 'GET', uri: '/api/products/?page=-5');
         $this->assertResponseIsSuccessful();
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
         $this->assertSame(1, $responseData['meta']['pagination']['current_page']); // Should be adjusted to 1

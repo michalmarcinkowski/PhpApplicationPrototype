@@ -15,6 +15,7 @@ use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
+#[Route('/api/products', name: 'app_product_')]
 final class ProductController extends AbstractJsonApiController
 {
     public const DEFAULT_PAGINATION = 3;
@@ -36,7 +37,7 @@ final class ProductController extends AbstractJsonApiController
         $this->entityManager = $entityManager;
     }
 
-    #[Route('/api/products', name: 'app_product_list', methods: ['GET'])]
+    #[Route('/', name: 'list', methods: ['GET'])]
     public function listAction(Request $request): JsonResponse
     {
         $paginator = $this->productRepository->getPaginator(
@@ -48,7 +49,7 @@ final class ProductController extends AbstractJsonApiController
         return $this->getJsonResponseFromJsonData($serializedPaginatedProducts, Response::HTTP_OK);
     }
 
-    #[Route('/api/products', name: 'app_product_create', methods: ['POST'])]
+    #[Route('/', name: 'create', methods: ['POST'])]
     public function createAction(Request $request): JsonResponse
     {
         /** @var ProductCreateRequest $productCreateRequest */
@@ -64,7 +65,7 @@ final class ProductController extends AbstractJsonApiController
         return $this->getJsonResponseFromJsonData($serializedProduct, Response::HTTP_CREATED);
     }
 
-    #[Route('/api/products/{id}', name: 'app_product_update', methods: ['PUT'])]
+    #[Route('/{id}', name: 'update', methods: ['PUT'])]
     public function updateAction(int $id, Request $request): JsonResponse
     {
         $product = $this->productRepository->findById($id);
@@ -84,7 +85,7 @@ final class ProductController extends AbstractJsonApiController
         return $this->getJsonResponseFromJsonData($serializedProduct, Response::HTTP_OK);
     }
 
-    #[Route('/api/products/{id}', name: 'app_product_delete', methods: ['DELETE'])]
+    #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
     public function deleteAction(int $id): JsonResponse
     {
         $product = $this->productRepository->findById($id);

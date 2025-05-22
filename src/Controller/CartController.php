@@ -18,6 +18,7 @@ use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
+#[Route('/api/carts', name: 'app_cart_')]
 final class CartController extends AbstractJsonApiController
 {
     public const DEFAULT_RESPONSE_CONTENT_TYPE = 'application/json; charset=utf-8';
@@ -39,7 +40,7 @@ final class CartController extends AbstractJsonApiController
         $this->entityManager = $entityManager;
     }
 
-    #[Route('/api/carts', name: 'app_cart_create', methods: ['POST'])]
+    #[Route('/', name: 'create', methods: ['POST'])]
     public function createAction(): JsonResponse
     {
         $cart = $this->createCart();
@@ -48,7 +49,7 @@ final class CartController extends AbstractJsonApiController
         return $this->getJsonResponseFromJsonData($serializedCart, Response::HTTP_CREATED);
     }
 
-    #[Route('/api/carts/{id}', name: 'app_cart_show', methods: ['GET'])]
+    #[Route('/{id}', name: 'show', methods: ['GET'])]
     public function showAction(int $id): JsonResponse
     {
         $cart = $this->cartRepository->findById($id);
