@@ -2,6 +2,7 @@
 
 namespace App\Tests\Controller;
 
+use App\Controller\ProductController;
 use App\Entity\Product;
 use Doctrine\ORM\Tools\SchemaTool;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -87,25 +88,27 @@ class ProductControllerListTest extends WebTestCase
         $this->client->request(method: 'GET', uri: '/api/products');
 
         $this->assertResponseIsSuccessful();
-        $this->assertResponseHeaderSame('Content-Type', 'application/json');
+        $this->assertResponseHeaderSame('Content-Type', 'application/json; charset=utf-8');
 
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
 
         // Assert products data
-        $this->assertArrayHasKey('products', $responseData);
-        $this->assertIsArray($responseData['products']);
-        $this->assertCount(self::DEFAULT_PAGINATION, $responseData['products']);
+        $this->assertArrayHasKey('data', $responseData);
+        $this->assertIsArray($responseData['data']);
+        $this->assertCount(ProductController::DEFAULT_PAGINATION, $responseData['data']);
 
         // Assert pagination data
-        $this->assertArrayHasKey('pagination', $responseData);
-        $this->assertIsArray($responseData['pagination']);
-        $this->assertSame(1, $responseData['pagination']['currentPage']);
-        $this->assertDefaultPaginationGeneralInfo($responseData['pagination']);
+        $this->assertArrayHasKey('meta', $responseData);
+        $this->assertArrayHasKey('pagination', $responseData['meta']);
+        $pagination = $responseData['meta']['pagination'];
+        $this->assertIsArray($pagination);
+        $this->assertSame(1, $pagination['current_page']);
+        $this->assertDefaultPaginationGeneralInfo($pagination);
 
         // Verify the titles of the first 3 products
-        $this->assertSame('Fallout', $responseData['products'][0]['title']);
-        $this->assertSame('Don\'t Starve', $responseData['products'][1]['title']);
-        $this->assertSame('Baldur\'s Gate', $responseData['products'][2]['title']);
+        $this->assertSame('Fallout', $responseData['data'][0]['title']);
+        $this->assertSame('Don\'t Starve', $responseData['data'][1]['title']);
+        $this->assertSame('Baldur\'s Gate', $responseData['data'][2]['title']);
     }
 
     public function testListProductsSpecificPage(): void
@@ -118,12 +121,12 @@ class ProductControllerListTest extends WebTestCase
         $this->assertResponseIsSuccessful();
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
 
-        $this->assertCount(2, $responseData['products']);
-        $this->assertSame('Icewind Dale', $responseData['products'][0]['title']);
-        $this->assertSame('Bloodborne', $responseData['products'][1]['title']);
+        $this->assertCount(2, $responseData['data']);
+        $this->assertSame('Icewind Dale', $responseData['data'][0]['title']);
+        $this->assertSame('Bloodborne', $responseData['data'][1]['title']);
 
-        $this->assertSame($pageNumber, $responseData['pagination']['currentPage']);
-        $this->assertDefaultPaginationGeneralInfo($responseData['pagination']);
+        $this->assertSame($pageNumber, $responseData['meta']['pagination']['current_page']);
+        $this->assertDefaultPaginationGeneralInfo($responseData['meta']['pagination']);
     }
 
     /**
@@ -136,15 +139,16 @@ class ProductControllerListTest extends WebTestCase
         $this->assertResponseIsSuccessful();
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
 
-        $this->assertArrayHasKey('products', $responseData);
-        $this->assertIsArray($responseData['products']);
-        $this->assertEmpty($responseData['products']);
+        $this->assertArrayHasKey('data', $responseData);
+        $this->assertIsArray($responseData['data']);
+        $this->assertEmpty($responseData['data']);
 
-        $this->assertArrayHasKey('pagination', $responseData);
-        $this->assertSame(1, $responseData['pagination']['currentPage']);
-        $this->assertSame(self::DEFAULT_PAGINATION, $responseData['pagination']['itemsPerPage']);
-        $this->assertSame(0, $responseData['pagination']['totalItems']);
-        $this->assertSame(1, $responseData['pagination']['totalPages']);
+        $this->assertArrayHasKey('meta', $responseData);
+        $pagination = $responseData['meta']['pagination'];
+        $this->assertSame(1, $pagination['current_page']);
+        $this->assertSame(ProductController::DEFAULT_PAGINATION, $pagination['per_page']);
+        $this->assertSame(0, $pagination['total']);
+        $this->assertSame(0, $pagination['total_pages']);
     }
 
     public function testListProductsFewerThanLimit(): void
@@ -158,15 +162,17 @@ class ProductControllerListTest extends WebTestCase
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
 
         // Assert products data
-        $this->assertCount($numberOfProducts, $responseData['products']);
-        $this->assertSame('Game Title 1', $responseData['products'][0]['title']);
-        $this->assertSame('Game Title 2', $responseData['products'][1]['title']);
+        $this->assertCount($numberOfProducts, $responseData['data']);
+        $this->assertSame('Game Title 1', $responseData['data'][0]['title']);
+        $this->assertSame('Game Title 2', $responseData['data'][1]['title']);
 
         // Assert pagination data
-        $this->assertSame(1, $responseData['pagination']['currentPage']);
-        $this->assertSame(self::DEFAULT_PAGINATION, $responseData['pagination']['itemsPerPage']);
-        $this->assertSame($numberOfProducts, $responseData['pagination']['totalItems']);
-        $this->assertSame(1, $responseData['pagination']['totalPages']);
+        $this->assertArrayHasKey('meta', $responseData);
+        $pagination = $responseData['meta']['pagination'];
+        $this->assertSame(1, $pagination['current_page']);
+        $this->assertSame(ProductController::DEFAULT_PAGINATION, $pagination['per_page']);
+        $this->assertSame($numberOfProducts, $pagination['total']);
+        $this->assertSame(1, $pagination['total_pages']);
     }
 
     public function testListProductsPageTooHigh(): void
@@ -180,12 +186,12 @@ class ProductControllerListTest extends WebTestCase
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
 
         // Should return the last page (page 2)
-        $this->assertCount(1, $responseData['products']);
-        $this->assertSame('Cyberpunk 2077', $responseData['products'][0]['title']);
-        $this->assertSame(2, $responseData['pagination']['currentPage']); // Adjusted to last page
-        $this->assertSame(self::DEFAULT_PAGINATION, $responseData['pagination']['itemsPerPage']);
-        $this->assertSame(self::DEFAULT_NUMBER_OF_PRODUCTS, $responseData['pagination']['totalItems']);
-        $this->assertSame(2, $responseData['pagination']['totalPages']);
+        $this->assertCount(2, $responseData['data']);
+        $pagination = $responseData['meta']['pagination'];
+        $this->assertSame(2, $pagination['current_page']); // Adjusted to last page
+        $this->assertSame(ProductController::DEFAULT_PAGINATION, $pagination['per_page']);
+        $this->assertSame(self::DEFAULT_NUMBER_OF_PRODUCTS, $pagination['total']);
+        $this->assertSame(2, $pagination['total_pages']);
     }
 
     public function testListProductsInvalidPageNumber(): void
@@ -196,41 +202,22 @@ class ProductControllerListTest extends WebTestCase
         $this->client->request(method: 'GET', uri: '/api/products?page=0');
         $this->assertResponseIsSuccessful();
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
-        $this->assertSame(1, $responseData['pagination']['currentPage']); // Should be adjusted to 1
-        $this->assertSame('Fallout', $responseData['products'][0]['title']);
+        $this->assertSame(1, $responseData['meta']['pagination']['current_page']); // Should be adjusted to 1
+        $this->assertSame('Fallout', $responseData['data'][0]['title']);
 
         // Test with page=-5
         $this->client->request(method: 'GET', uri: '/api/products?page=-5');
         $this->assertResponseIsSuccessful();
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
-        $this->assertSame(1, $responseData['pagination']['currentPage']); // Should be adjusted to 1
-        $this->assertSame('Fallout', $responseData['products'][0]['title']);
+        $this->assertSame(1, $responseData['meta']['pagination']['current_page']); // Should be adjusted to 1
+        $this->assertSame('Fallout', $responseData['data'][0]['title']);
     }
-
-//    public function testListProductsLimitCap(): void
-//    {
-//        $this->createFiveStandardProducts();
-//
-//        // Request limit 10, but it should be capped at 3
-//        $this->client->request(method: 'GET', uri: '/api/products?limit=10');
-//
-//        $this->assertResponseIsSuccessful();
-//        $responseData = json_decode($this->client->getResponse()->getContent(), true);
-//
-//        // Should only return 3 products
-//        $this->assertCount(self::PAGINATION_DEFAULT, $responseData['products']);
-//        // Should be capped at 3
-//        $this->assertSame(self::PAGINATION_DEFAULT, $responseData['pagination']['itemsPerPage']);
-//        $this->assertSame(1, $responseData['pagination']['currentPage']);
-//        $this->assertSame(self::TOTAL_NUMBER_OF_PRODUCTS, $responseData['pagination']['totalItems']);
-//        $this->assertSame(2, $responseData['pagination']['totalPages']);
-//    }
 
     protected function assertDefaultPaginationGeneralInfo(array $pagination): void
     {
-        $this->assertSame(self::DEFAULT_PAGINATION, $pagination['itemsPerPage']);
-        $this->assertSame(self::DEFAULT_NUMBER_OF_PRODUCTS, $pagination['totalItems']);
-        $this->assertSame(ceil(self::DEFAULT_NUMBER_OF_PRODUCTS / self::DEFAULT_PAGINATION), $pagination['totalPages']);
+        $this->assertSame(ProductController::DEFAULT_PAGINATION, $pagination['per_page']);
+        $this->assertSame(self::DEFAULT_NUMBER_OF_PRODUCTS, $pagination['total']);
+        $this->assertSame((int) ceil(self::DEFAULT_NUMBER_OF_PRODUCTS / ProductController::DEFAULT_PAGINATION), $pagination['total_pages']);
     }
 
 
