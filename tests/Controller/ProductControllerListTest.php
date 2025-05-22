@@ -46,9 +46,7 @@ class ProductControllerListTest extends WebTestCase
         ];
 
         foreach ($productsData as $data) {
-            $product = new Product();
-            $product->setTitle($data['title']);
-            $product->setPrice($data['price']);
+            $product = Product::create($data['title'], $data['price']);
             $this->entityManager->persist($product);
         }
         $this->entityManager->flush();
@@ -57,9 +55,7 @@ class ProductControllerListTest extends WebTestCase
     private function createRandomProducts(int $numberOfProducts): void
     {
         for ($i = 1; $i <= $numberOfProducts; $i++) {
-            $product = new Product();
-            $product->setTitle('Game Title ' . $i);
-            $product->setPrice(rand(99, 999));
+            $product = Product::create('Game Title ' . $i, rand(99, 999));
             $this->entityManager->persist($product);
         }
         $this->entityManager->flush();
@@ -76,7 +72,6 @@ class ProductControllerListTest extends WebTestCase
 
         $this->assertResponseIsSuccessful();
         $this->assertResponseHeaderSame('Content-Type', 'application/json; charset=utf-8');
-
         $responseData = json_decode($this->client->getResponse()->getContent(), true);
 
         // Assert products data

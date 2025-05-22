@@ -24,16 +24,23 @@ class Product
         return $this->id;
     }
 
+    public static function create(string $title, int $price): self
+    {
+        $product = new self();
+        $product->setTitle($title);
+        $product->setPrice($price);
+
+        return $product;
+    }
+
     public function getTitle(): ?string
     {
         return $this->title;
     }
 
-    public function setTitle(string $title): static
+    public function setTitle(string $title): void
     {
         $this->title = $title;
-
-        return $this;
     }
 
     public function getPrice(): ?int
@@ -41,10 +48,8 @@ class Product
         return $this->price;
     }
 
-    public function setPrice(int $price): static
+    public function setPrice(int $price): void
     {
         $this->price = $price;
-
-        return $this;
     }
 }
