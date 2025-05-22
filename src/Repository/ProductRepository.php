@@ -12,4 +12,14 @@ class ProductRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, Product::class);
     }
+
+    public function getPaginated(PaginationInterface $pagination): array
+    {
+        return parent::findBy([], null, $pagination->getPerPage(), $pagination->getOffset());
+    }
+
+    public function getPagination(int $perPage, int $requestedPage): PaginationInterface
+    {
+        return new Pagination($this->count(), $perPage, $requestedPage);
+    }
 }

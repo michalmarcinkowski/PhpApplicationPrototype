@@ -13,22 +13,25 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class ProductController extends AbstractController
 {
     public const DEFAULT_PAGINATION = 3;
+    public const RESPONSE_CONTENT_TYPE = 'application/json; charset=utf-8';
     private SerializerInterface $serializer;
     private ValidatorInterface $validator;
     private EntityManagerInterface $entityManager;
     private ProductRepository $productRepository;
 
     public function __construct(
-        SerializerInterface $serializer,
-        ValidatorInterface $validator,
-        ProductRepository $productRepository,
+        SerializerInterface    $serializer,
+        ValidatorInterface     $validator,
+        ProductRepository      $productRepository,
         EntityManagerInterface $entityManager
-    ) {
+    )
+    {
         $this->serializer = $serializer;
         $this->validator = $validator;
         $this->productRepository = $productRepository;
@@ -38,30 +41,19 @@ final class ProductController extends AbstractController
     #[Route('/api/products', name: 'app_product_list', methods: ['GET'])]
     public function list(Request $request): JsonResponse
     {
-        $limit = self::DEFAULT_PAGINATION;
-        $page = (int) $request->query->get('page', 1);
+        $pagination = $this->productRepository->getPagination(
+            self::DEFAULT_PAGINATION,
+            (int) $request->query->get('page', 1),
+        );
 
-        $totalProducts = $this->productRepository->count();
-        $totalPages = (int) ceil($totalProducts / $limit);
-
-        $currentPage = $this->resolveCurrentPage($totalProducts, $page, $totalPages);
-
-        $products = $this->productRepository->findBy([], null, $limit, ($currentPage - 1) * $limit);
+        $products = $this->productRepository->getPaginated($pagination);
 
         $serializedProducts = $this->serializer->serialize($products, 'json');
-        return new JsonResponse([
+        return $this->getJsonResponseFromArrayData([
             'data' => json_decode($serializedProducts, true),
             'meta' => [
-                'pagination' => [
-                    'total' => $totalProducts,
-                    'per_page' => $limit,
-                    'current_page' => $currentPage,
-                    'total_pages' => $totalPages,
-            ]]],
-                Response::HTTP_OK,
-            [
-                'Content-Type' => 'application/json; charset=utf-8',
-            ]);
+                'pagination' => $pagination,
+            ]], Response::HTTP_OK);
     }
 
     #[Route('/api/products/{id}', name: 'app_product_update', methods: ['PUT'])]
@@ -69,13 +61,9 @@ final class ProductController extends AbstractController
     {
         $product = $this->productRepository->find($id);
         if (!$product) {
-            return new JsonResponse([
+            return $this->getJsonResponseFromArrayData([
                 'message' => 'Product not found.'
-            ],
-                Response::HTTP_NOT_FOUND,
-            [
-                'Content-Type' => 'application/json; charset=utf-8'
-            ]);
+            ], Response::HTTP_NOT_FOUND);
         }
 
         /** @var ProductUpdateRequest $productUpdateRequest */
@@ -84,42 +72,17 @@ final class ProductController extends AbstractController
             ProductUpdateRequest::class,
             'json'
         );
-
-        $violations = $this->validator->validate($productUpdateRequest);
-        if (count($violations) > 0) {
-            $errors = [];
-            foreach ($violations as $error) {
-                $errors[$error->getPropertyPath()][] = $error->getMessage();
-            }
-
-            return new JsonResponse([
-                'message' => 'Validation Failed',
-                'errors' => $errors
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-        if ($this->productRepository->findOneBy(['title' => $productUpdateRequest->title])) {
-            return new JsonResponse([
-                'message' => 'Product with this title already exists.'
-            ],
-                Response::HTTP_UNPROCESSABLE_ENTITY,
-                [
-                    'Content-Type' => 'application/json; charset=utf-8'
-                ]);
+        $jsonResponse = $this->validateUpdateRequest($productUpdateRequest);
+        if ($jsonResponse) {
+            return $jsonResponse;
         }
 
         $product->setTitle($productUpdateRequest->title);
         $product->setPrice($productUpdateRequest->price);
         $this->entityManager->flush();
 
-        return new JsonResponse([
-            'id' => $product->getId(),
-            'title' => $product->getTitle(),
-            'price' => $product->getPrice(),
-        ],
-            Response::HTTP_OK,
-        [
-            'Content-Type' => 'application/json; charset=utf-8',
-        ]);
+        $serializedProduct = $this->serializer->serialize($product, 'json');
+        return $this->getJsonResponseFromJsonData($serializedProduct, Response::HTTP_OK);
     }
 
     #[Route('/api/products/{id}', name: 'app_product_delete', methods: ['DELETE'])]
@@ -128,13 +91,10 @@ final class ProductController extends AbstractController
         $product = $this->productRepository->find($id);
 
         if (!$product) {
-            return new JsonResponse([
-                'message' => 'Product not found.'
-            ],
-                Response::HTTP_NOT_FOUND,
-            [
-                'Content-Type' => 'application/json; charset=utf-8'
-            ]);
+            return $this->getJsonResponseFromArrayData(
+                ['message' => 'Product not found.'],
+                Response::HTTP_NOT_FOUND
+            );
         }
         $this->entityManager->remove($product);
         $this->entityManager->flush();
@@ -152,26 +112,9 @@ final class ProductController extends AbstractController
             'json'
         );
 
-        $violations = $this->validator->validate($productCreateRequest);
-        if (count($violations) > 0) {
-            $errors = [];
-            foreach ($violations as $error) {
-                $errors[$error->getPropertyPath()][] = $error->getMessage();
-            }
-
-            return new JsonResponse([
-                'message' => 'Validation Failed',
-                'errors' => $errors
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-        if ($this->productRepository->findOneBy(['title' => $productCreateRequest->title])) {
-            return new JsonResponse([
-                'message' => 'Product with this title already exists.'
-            ],
-                Response::HTTP_UNPROCESSABLE_ENTITY,
-            [
-                'Content-Type' => 'application/json; charset=utf-8'
-            ]);
+        $jsonResponse = $this->validateCreateRequest($productCreateRequest);
+        if ($jsonResponse) {
+            return $jsonResponse;
         }
 
         $product = new Product();
@@ -180,29 +123,55 @@ final class ProductController extends AbstractController
         $this->entityManager->persist($product);
         $this->entityManager->flush();
 
-        return new JsonResponse([
-            'id' => $product->getId(),
-            'title' => $product->getTitle(),
-            'price' => $product->getPrice(),
-        ],
-            Response::HTTP_CREATED,
-        [
-            'Content-Type' => 'application/json; charset=utf-8',
-        ]);
+        $serializedProduct = $this->serializer->serialize($product, 'json');
+        return $this->getJsonResponseFromJsonData($serializedProduct, Response::HTTP_CREATED);
     }
 
-    protected function resolveCurrentPage(int $totalProducts, int $page, int $totalPages): int
+    protected function validateCreateRequest(ProductCreateRequest $productCreateRequest): ?JsonResponse
     {
-        if ($totalProducts === 0) {
-            return 1; // If no products, stay on page 1
-        } else if ($page > $totalPages) {
-            return $totalPages; // If page is greater than total pages, return last page
+        return $this->fullValidation($this->validator->validate($productCreateRequest), $productCreateRequest->title);
+    }
+
+    protected function validateUpdateRequest(ProductUpdateRequest $productUpdateRequest): ?JsonResponse
+    {
+        return $this->fullValidation($this->validator->validate($productUpdateRequest), $productUpdateRequest->title);
+    }
+
+    public function fullValidation(ConstraintViolationListInterface $violations, ?string $title): ?JsonResponse
+    {
+        if (count($violations) > 0) {
+            $errors = [];
+            foreach ($violations as $error) {
+                $errors[$error->getPropertyPath()][] = $error->getMessage();
+            }
+
+            return $this->getJsonResponseFromArrayData([
+                'message' => 'Validation Failed',
+                'errors' => $errors
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if (null === $title) {
+            return $this->getJsonResponseFromArrayData([
+                'message' => 'Validation Failed',
+                'errors' => ['title' => ['Title cannot be null']]
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if ($this->productRepository->findOneBy(['title' => $title])) {
+            return $this->getJsonResponseFromArrayData([
+                'message' => 'Product with this title already exists.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        if ($page < 1) {
-            return 1; // If page is less than 1, return first page
-        }
+        return null;
+    }
 
-        return $page;
+    protected function getJsonResponseFromArrayData(array $arrayPayload, int $responseCode, string $contentType = self::RESPONSE_CONTENT_TYPE): JsonResponse
+    {
+        return new JsonResponse($arrayPayload, $responseCode, ['Content-Type' => $contentType]);
+    }
+
+    protected function getJsonResponseFromJsonData(string $jsonPayload, int $responseCode, string $contentType = self::RESPONSE_CONTENT_TYPE): JsonResponse
+    {
+        return new JsonResponse($jsonPayload, $responseCode, ['Content-Type' => $contentType], true);
     }
 }

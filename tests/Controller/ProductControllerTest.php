@@ -244,6 +244,32 @@ final class ProductControllerTest extends WebTestCase
         $this->assertSame($updatedProductData['price'], $updatedProductResponse['price']);
     }
 
+//    public function testCanUpdateOnlyProductPrice(): void
+//    {
+//        $testProductData = [
+//            'title' => 'Icewind Dale',
+//            'price' => 499,
+//        ];
+//        $updatedProductData = [
+//            'title' => 'Icewind Dale',
+//            'price' => 599,
+//        ];
+//
+//        $createdProductResponse = $this->createProductJsonRequest($testProductData);
+//        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+//        $this->assertArrayHasKey('id', $createdProductResponse);
+//        // Check that the newly created product data is not the same as the data in update request
+//        $this->assertSame($updatedProductData['title'], $createdProductResponse['title']);
+//        $this->assertNotSame($updatedProductData['price'], $createdProductResponse['price']);
+//
+//        $updatedProductResponse = $this->updateProductJsonRequest($createdProductResponse['id'], $updatedProductData);
+//
+//        $this->assertResponseStatusCodeSame(Response::HTTP_OK);
+//        $this->assertSame($createdProductResponse['id'], $updatedProductResponse['id']);
+//        $this->assertSame($updatedProductData['title'], $updatedProductResponse['title']);
+//        $this->assertSame($updatedProductData['price'], $updatedProductResponse['price']);
+//    }
+
     public function testCantUpdateProductWithDuplicateTitle(): void
     {
         $testProduct1Data = [
