@@ -1,0 +1,17 @@
+App\Request\AddItemToCartRequest:
+  properties:
+    cartId:
+      - NotBlank: ~
+      - Type:
+          type: 'integer'
+    productId:
+      - NotBlank: ~
+      - Type:
+          type: 'integer'
+    quantity:
+      - NotBlank: ~
+      - Type:
+          type: 'integer'
+      - Range:
+          min: 1
+          max: 10
