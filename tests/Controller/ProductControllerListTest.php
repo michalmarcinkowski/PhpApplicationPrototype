@@ -19,7 +19,7 @@ class ProductControllerListTest extends WebTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->client = static::createClient();
+        $this->client = self::createClient();
         $this->entityManager = self::getContainer()->get('doctrine')->getManager();
         $this->resetDb();
     }
@@ -201,7 +201,6 @@ class ProductControllerListTest extends WebTestCase
         $this->assertSame(self::DEFAULT_NUMBER_OF_PRODUCTS, $pagination['total']);
         $this->assertSame((int) ceil(self::DEFAULT_NUMBER_OF_PRODUCTS / ProductController::DEFAULT_PAGINATION), $pagination['total_pages']);
     }
-
 
     protected function resetDb(): void
     {

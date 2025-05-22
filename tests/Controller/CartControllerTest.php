@@ -2,8 +2,10 @@
 
 namespace Controller;
 
+use App\Entity\Product;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
+use phpDocumentor\Reflection\DocBlock\Tags\See;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Response;
@@ -11,23 +13,30 @@ use Symfony\Component\HttpFoundation\Response;
 final class CartControllerTest extends WebTestCase
 {
     protected ?KernelBrowser $client = null;
+    private ?EntityManagerInterface $entityManager = null;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->client = self::createClient();
+        $this->entityManager = self::getContainer()->get('doctrine')->getManager();
         $this->resetDb();
     }
 
     protected function tearDown(): void
     {
         parent::tearDown();
-        $this->client = null;
+        // Clean up the database after each test
+        $this->resetDb();
+
+        // Close the entity manager to prevent memory leaks
+        $this->entityManager->close();
+        $this->entityManager = null;
     }
 
     public function testCanCreateCart(): void
     {
-        $responseContent = $this->createCartJsonRequest();
+        $responseContent = $this->createCartRequest();
 
         $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
         $this->assertResponseHeaderSame('Content-Type', 'application/json; charset=utf-8');
@@ -40,7 +49,7 @@ final class CartControllerTest extends WebTestCase
 
     public function testCanGetEmptyCart(): void
     {
-        $cartCreatedResponse = $this->createCartJsonRequest();
+        $cartCreatedResponse = $this->createCartRequest();
         $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
         $this->assertArrayHasKey('id', $cartCreatedResponse);
 
@@ -63,7 +72,32 @@ final class CartControllerTest extends WebTestCase
         $this->assertResponseHeaderSame('Content-Type', 'application/json; charset=utf-8');
     }
 
-    protected function createCartJsonRequest(): mixed
+    public function testCanCreateCartAndSuccessfullyAddOneItemToIt(): void
+    {
+        $product = $this->givenThereIsAProduct('Fallout', 199);
+        $cartCreatedResponse = $this->createCartRequest();
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+        $this->assertResponseHeaderSame('Content-Type', 'application/json; charset=utf-8');
+
+        $this->assertArrayHasKey('id', $cartCreatedResponse);
+        $this->assertArrayHasKey('items', $cartCreatedResponse);
+        $this->assertEmpty($cartCreatedResponse['items']);
+
+        $addedToCartResponse = $this->addItemToCartRequest($cartCreatedResponse['id'], $product->getId(), 1);
+dump($addedToCartResponse);
+        $this->assertArrayHasKey('id', $addedToCartResponse);
+        $this->assertArrayHasKey('items', $addedToCartResponse);
+        $this->assertCount(1, $addedToCartResponse['items']);
+
+        $this->assertSame('Fallout', $addedToCartResponse['items'][0]['title']);
+        $this->assertSame(1, $addedToCartResponse['items'][0]['quantity']);
+        $this->assertSame(199, $addedToCartResponse['items'][0]['price']);
+        $this->assertSame(199, $addedToCartResponse['items'][0]['total']);
+        $this->assertSame(199, $addedToCartResponse['total']);
+    }
+
+    protected function createCartRequest(): mixed
     {
         $this->client->request(
             method: 'POST',
@@ -74,6 +108,29 @@ final class CartControllerTest extends WebTestCase
         );
 
         return json_decode($this->client->getResponse()->getContent(), true);
+    }
+
+    protected function addItemToCartRequest(int $cartId, int $productId, int $quantity): mixed
+    {
+        $this->client->request(
+            method: 'POST',
+            uri: sprintf('/api/carts/%d/items/', $cartId),
+            server: [
+                'HTTP_ACCEPT' => 'application/json',
+            ],
+            content: json_encode(['cartId' =>$cartId, 'productId' => $productId, 'quantity' => $quantity]),
+        );
+
+        return json_decode($this->client->getResponse()->getContent(), true);
+    }
+
+    protected function givenThereIsAProduct(string $title, int $price): Product
+    {
+        $product = Product::create($title, $price);
+        $this->entityManager->persist($product);
+        $this->entityManager->flush();
+
+        return $product;
     }
 
     protected function getCartRequest(mixed $cartId): mixed
@@ -104,12 +161,8 @@ final class CartControllerTest extends WebTestCase
 
     protected function resetDb(): void
     {
-        $container = self::getContainer();
-        /** @var EntityManagerInterface $entityManager */
-        $entityManager = $container->get('doctrine.orm.entity_manager');
-
-        $metadata = $entityManager->getMetadataFactory()->getAllMetadata();
-        $schemaTool = new SchemaTool($entityManager);
+        $metadata = $this->entityManager->getMetadataFactory()->getAllMetadata();
+        $schemaTool = new SchemaTool($this->entityManager);
 
         $schemaTool->dropDatabase();
         $schemaTool->createSchema($metadata);

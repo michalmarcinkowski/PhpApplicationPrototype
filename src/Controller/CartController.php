@@ -3,11 +3,14 @@
 namespace App\Controller;
 
 use App\Entity\Cart;
+use App\Entity\CartItem;
 use App\Entity\Product;
 use App\Repository\CartRepositoryInterface;
 use App\Repository\ProductRepositoryInterface;
+use App\Request\AddItemToCartRequest;
 use App\Request\ProductCreateRequest;
 use App\Request\ProductUpdateRequest;
+use App\Service\CartOperatorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,20 +26,23 @@ final class CartController extends AbstractJsonApiController
 {
     public const DEFAULT_RESPONSE_CONTENT_TYPE = 'application/json; charset=utf-8';
     private SerializerInterface $serializer;
-//    private ValidatorInterface $validator;
-    private EntityManagerInterface $entityManager;
+    private ValidatorInterface $validator;
     private CartRepositoryInterface $cartRepository;
+    private CartOperatorInterface $cartOperator;
+    private EntityManagerInterface $entityManager;
 
     public function __construct(
         SerializerInterface $serializer,
         ValidatorInterface $validator,
         CartRepositoryInterface $cartRepository,
+        CartOperatorInterface $cartOperator,
         EntityManagerInterface $entityManager
     )
     {
         $this->serializer = $serializer;
-//        $this->validator = $validator;
+        $this->validator = $validator;
         $this->cartRepository = $cartRepository;
+        $this->cartOperator = $cartOperator;
         $this->entityManager = $entityManager;
     }
 
@@ -59,6 +65,48 @@ final class CartController extends AbstractJsonApiController
         $serializedCart = $this->serializer->serialize($cart, 'json');
 
         return $this->getJsonResponseFromJsonData($serializedCart, Response::HTTP_OK);
+    }
+
+    #[Route('/{cartId}/items/', name: 'add', methods: ['POST'])]
+    public function add(int $cartId, Request $request): JsonResponse
+    {
+        $addItemToCartRequest = $this->getAddItemToCartRequest($request->getContent());
+        $jsonResponse = $this->validateAddToCartRequest($addItemToCartRequest);
+        if ($jsonResponse) {
+            return $jsonResponse;
+        }
+
+        $cart = $this->cartOperator->addProductToCart(
+            $addItemToCartRequest->cartId,
+            $addItemToCartRequest->productId,
+            $addItemToCartRequest->quantity
+        );
+        $this->entityManager->flush();
+        $serializedCart = $this->serializer->serialize($cart, 'json');
+
+        return $this->getJsonResponseFromJsonData($serializedCart, Response::HTTP_CREATED);
+    }
+
+    protected function validateAddToCartRequest(AddItemToCartRequest $addItemToCartRequest): ?JsonResponse
+    {
+        $violations = $this->validator->validate($addItemToCartRequest);
+        if (count($violations) > 0) {
+            $errors = [];
+            foreach ($violations as $error) {
+                $errors[$error->getPropertyPath()][] = $error->getMessage();
+            }
+
+            return $this->createValidationFailedResponse($errors);
+        }
+
+        return null;
+    }
+
+    protected function getAddItemToCartRequest($content): AddItemToCartRequest
+    {
+        return $this->serializer->deserialize(
+            $content, AddItemToCartRequest::class, 'json'
+        );
     }
 
     protected function createCart(): Cart
