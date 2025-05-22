@@ -7,7 +7,6 @@ use App\Repository\ProductRepositoryInterface;
 use App\Request\ProductCreateRequest;
 use App\Request\ProductUpdateRequest;
 use Doctrine\ORM\EntityManagerInterface;
-use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -16,10 +15,9 @@ use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
-final class ProductController extends AbstractController
+final class ProductController extends AbstractJsonApiController
 {
     public const DEFAULT_PAGINATION = 3;
-    public const DEFAULT_RESPONSE_CONTENT_TYPE = 'application/json; charset=utf-8';
     private SerializerInterface $serializer;
     private ValidatorInterface $validator;
     private EntityManagerInterface $entityManager;
@@ -128,29 +126,6 @@ final class ProductController extends AbstractController
         return null;
     }
 
-    protected function getJsonResponseFromArrayData(array $arrayPayload, int $responseCode, string $contentType = self::DEFAULT_RESPONSE_CONTENT_TYPE): JsonResponse
-    {
-        return new JsonResponse($arrayPayload, $responseCode, ['Content-Type' => $contentType]);
-    }
-
-    protected function getJsonResponseFromJsonData(string $jsonPayload, int $responseCode, string $contentType = self::DEFAULT_RESPONSE_CONTENT_TYPE): JsonResponse
-    {
-        return new JsonResponse($jsonPayload, $responseCode, ['Content-Type' => $contentType], true);
-    }
-
-    protected function createNotFoundJsonResponse(string $message): JsonResponse
-    {
-        return $this->getJsonResponseFromArrayData(['message' => $message], Response::HTTP_NOT_FOUND);
-    }
-
-    protected function createValidationFailedResponse(array $errors): JsonResponse
-    {
-        return $this->getJsonResponseFromArrayData([
-            'message' => 'Validation Failed',
-            'errors' => $errors
-        ], Response::HTTP_UNPROCESSABLE_ENTITY);
-    }
-
     protected function create(ProductCreateRequest $productCreateRequest): Product
     {
         $product = Product::create($productCreateRequest->title, $productCreateRequest->price);
@@ -160,21 +135,12 @@ final class ProductController extends AbstractController
         return $product;
     }
 
-    /**
-     * @param Product $product
-     * @return void
-     */
     protected function delete(Product $product): void
     {
         $this->entityManager->remove($product);
         $this->entityManager->flush();
     }
 
-    /**
-     * @param Product $product
-     * @param ProductUpdateRequest $productUpdateRequest
-     * @return void
-     */
     protected function update(Product $product, ProductUpdateRequest $productUpdateRequest): void
     {
         $product->setTitle($productUpdateRequest->title);
@@ -189,7 +155,7 @@ final class ProductController extends AbstractController
         );
     }
 
-    public function getProductUpdateRequest($content): ProductUpdateRequest
+    protected function getProductUpdateRequest($content): ProductUpdateRequest
     {
         return $this->serializer->deserialize(
             $content, ProductUpdateRequest::class, 'json'

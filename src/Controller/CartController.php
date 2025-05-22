@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Cart;
 use App\Entity\Product;
+use App\Repository\CartRepositoryInterface;
 use App\Repository\ProductRepositoryInterface;
 use App\Request\ProductCreateRequest;
 use App\Request\ProductUpdateRequest;
@@ -17,24 +18,24 @@ use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
-final class CartController extends AbstractController
+final class CartController extends AbstractJsonApiController
 {
     public const DEFAULT_RESPONSE_CONTENT_TYPE = 'application/json; charset=utf-8';
     private SerializerInterface $serializer;
 //    private ValidatorInterface $validator;
     private EntityManagerInterface $entityManager;
-    private ProductRepositoryInterface $productRepository;
+    private CartRepositoryInterface $cartRepository;
 
     public function __construct(
         SerializerInterface $serializer,
         ValidatorInterface $validator,
-//        ProductRepositoryInterface $productRepository,
+        CartRepositoryInterface $cartRepository,
         EntityManagerInterface $entityManager
     )
     {
         $this->serializer = $serializer;
 //        $this->validator = $validator;
-//        $this->productRepository = $productRepository;
+        $this->cartRepository = $cartRepository;
         $this->entityManager = $entityManager;
     }
 
@@ -47,6 +48,18 @@ final class CartController extends AbstractController
         return $this->getJsonResponseFromJsonData($serializedCart, Response::HTTP_CREATED);
     }
 
+    #[Route('/api/carts/{id}', name: 'app_cart_show', methods: ['GET'])]
+    public function showAction(int $id): JsonResponse
+    {
+        $cart = $this->cartRepository->findById($id);
+        if (!$cart) {
+            return $this->createNotFoundJsonResponse('Cart not found.');
+        }
+        $serializedCart = $this->serializer->serialize($cart, 'json');
+
+        return $this->getJsonResponseFromJsonData($serializedCart, Response::HTTP_OK);
+    }
+
     protected function createCart(): Cart
     {
         $cart = new Cart();
@@ -54,10 +67,5 @@ final class CartController extends AbstractController
         $this->entityManager->flush();
 
         return $cart;
-    }
-
-    protected function getJsonResponseFromJsonData(string $jsonPayload, int $responseCode, string $contentType = self::DEFAULT_RESPONSE_CONTENT_TYPE): JsonResponse
-    {
-        return new JsonResponse($jsonPayload, $responseCode, ['Content-Type' => $contentType], true);
     }
 }
