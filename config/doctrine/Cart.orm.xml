@@ -7,5 +7,14 @@
         <id name="id" type="integer" column="id">
             <generator strategy="AUTO"/>
         </id>
+
+        <one-to-many field="items" target-entity="App\Entity\CartItem" mapped-by="cart" orphan-removal="true">
+            <cascade>
+                <cascade-all/>
+            </cascade>
+            <order-by>
+                <order-by-field name="id" direction="ASC" />
+            </order-by>
+        </one-to-many>
     </entity>
 </doctrine-mapping>

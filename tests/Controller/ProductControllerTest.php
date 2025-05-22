@@ -321,7 +321,7 @@ final class ProductControllerTest extends WebTestCase
     {
         $this->client->request(
             method: 'POST',
-            uri: '/api/products',
+            uri: '/api/products/',
             server: [
                 'CONTENT_TYPE' => 'application/json',
                 'HTTP_ACCEPT' => 'application/json',
