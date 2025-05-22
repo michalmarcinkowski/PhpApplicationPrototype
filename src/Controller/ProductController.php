@@ -3,7 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Product;
-use App\Repository\ProductRepository;
+use App\Repository\ProductRepositoryInterface;
 use App\Request\ProductCreateRequest;
 use App\Request\ProductUpdateRequest;
 use Doctrine\ORM\EntityManagerInterface;
@@ -13,22 +13,25 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class ProductController extends AbstractController
 {
     public const DEFAULT_PAGINATION = 3;
+    public const DEFAULT_RESPONSE_CONTENT_TYPE = 'application/json; charset=utf-8';
     private SerializerInterface $serializer;
     private ValidatorInterface $validator;
     private EntityManagerInterface $entityManager;
-    private ProductRepository $productRepository;
+    private ProductRepositoryInterface $productRepository;
 
     public function __construct(
         SerializerInterface $serializer,
         ValidatorInterface $validator,
-        ProductRepository $productRepository,
+        ProductRepositoryInterface $productRepository,
         EntityManagerInterface $entityManager
-    ) {
+    )
+    {
         $this->serializer = $serializer;
         $this->validator = $validator;
         $this->productRepository = $productRepository;
@@ -36,173 +39,160 @@ final class ProductController extends AbstractController
     }
 
     #[Route('/api/products', name: 'app_product_list', methods: ['GET'])]
-    public function list(Request $request): JsonResponse
+    public function listAction(Request $request): JsonResponse
     {
-        $limit = self::DEFAULT_PAGINATION;
-        $page = (int) $request->query->get('page', 1);
+        $paginator = $this->productRepository->getPaginator(
+            self::DEFAULT_PAGINATION,
+            $request->query->getInt('page', 1),
+        );
+        $serializedPaginatedProducts = $this->serializer->serialize($paginator, 'json');
 
-        $totalProducts = $this->productRepository->count();
-        $totalPages = (int) ceil($totalProducts / $limit);
+        return $this->getJsonResponseFromJsonData($serializedPaginatedProducts, Response::HTTP_OK);
+    }
 
-        $currentPage = $this->resolveCurrentPage($totalProducts, $page, $totalPages);
+    #[Route('/api/products', name: 'app_product_create', methods: ['POST'])]
+    public function createAction(Request $request): JsonResponse
+    {
+        /** @var ProductCreateRequest $productCreateRequest */
+        $productCreateRequest = $this->getProductCreateRequest($request->getContent());
 
-        $products = $this->productRepository->findBy([], null, $limit, ($currentPage - 1) * $limit);
+        $jsonResponse = $this->validateCreateRequest($productCreateRequest);
+        if ($jsonResponse) {
+            return $jsonResponse;
+        }
+        $product = $this->create($productCreateRequest);
+        $serializedProduct = $this->serializer->serialize($product, 'json');
 
-        $serializedProducts = $this->serializer->serialize($products, 'json');
-        return new JsonResponse([
-            'data' => json_decode($serializedProducts, true),
-            'meta' => [
-                'pagination' => [
-                    'total' => $totalProducts,
-                    'per_page' => $limit,
-                    'current_page' => $currentPage,
-                    'total_pages' => $totalPages,
-            ]]],
-                Response::HTTP_OK,
-            [
-                'Content-Type' => 'application/json; charset=utf-8',
-            ]);
+        return $this->getJsonResponseFromJsonData($serializedProduct, Response::HTTP_CREATED);
     }
 
     #[Route('/api/products/{id}', name: 'app_product_update', methods: ['PUT'])]
-    public function update(int $id, Request $request): JsonResponse
+    public function updateAction(int $id, Request $request): JsonResponse
     {
-        $product = $this->productRepository->find($id);
+        $product = $this->productRepository->findById($id);
         if (!$product) {
-            return new JsonResponse([
-                'message' => 'Product not found.'
-            ],
-                Response::HTTP_NOT_FOUND,
-            [
-                'Content-Type' => 'application/json; charset=utf-8'
-            ]);
+            return $this->createNotFoundJsonResponse('Product not found.');
         }
 
-        /** @var ProductUpdateRequest $productUpdateRequest */
-        $productUpdateRequest = $this->serializer->deserialize(
-            $request->getContent(),
-            ProductUpdateRequest::class,
-            'json'
-        );
-
-        $violations = $this->validator->validate($productUpdateRequest);
-        if (count($violations) > 0) {
-            $errors = [];
-            foreach ($violations as $error) {
-                $errors[$error->getPropertyPath()][] = $error->getMessage();
-            }
-
-            return new JsonResponse([
-                'message' => 'Validation Failed',
-                'errors' => $errors
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-        if ($this->productRepository->findOneBy(['title' => $productUpdateRequest->title])) {
-            return new JsonResponse([
-                'message' => 'Product with this title already exists.'
-            ],
-                Response::HTTP_UNPROCESSABLE_ENTITY,
-                [
-                    'Content-Type' => 'application/json; charset=utf-8'
-                ]);
+        $productUpdateRequest = $this->getProductUpdateRequest($request->getContent());
+        $jsonResponse = $this->validateUpdateRequest($productUpdateRequest);
+        if ($jsonResponse) {
+            return $jsonResponse;
         }
 
-        $product->setTitle($productUpdateRequest->title);
-        $product->setPrice($productUpdateRequest->price);
-        $this->entityManager->flush();
+        $this->update($product, $productUpdateRequest);
 
-        return new JsonResponse([
-            'id' => $product->getId(),
-            'title' => $product->getTitle(),
-            'price' => $product->getPrice(),
-        ],
-            Response::HTTP_OK,
-        [
-            'Content-Type' => 'application/json; charset=utf-8',
-        ]);
+        $serializedProduct = $this->serializer->serialize($product, 'json');
+        return $this->getJsonResponseFromJsonData($serializedProduct, Response::HTTP_OK);
     }
 
     #[Route('/api/products/{id}', name: 'app_product_delete', methods: ['DELETE'])]
-    public function delete(int $id): JsonResponse
+    public function deleteAction(int $id): JsonResponse
     {
-        $product = $this->productRepository->find($id);
-
+        $product = $this->productRepository->findById($id);
         if (!$product) {
-            return new JsonResponse([
-                'message' => 'Product not found.'
-            ],
-                Response::HTTP_NOT_FOUND,
-            [
-                'Content-Type' => 'application/json; charset=utf-8'
-            ]);
+            return $this->createNotFoundJsonResponse('Product not found.');
         }
-        $this->entityManager->remove($product);
-        $this->entityManager->flush();
+        $this->delete($product);
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
-    #[Route('/api/products', name: 'app_product_create', methods: ['POST'])]
-    public function create(Request $request): JsonResponse
+    protected function validateCreateRequest(ProductCreateRequest $productCreateRequest): ?JsonResponse
     {
-        /** @var ProductCreateRequest $productCreateRequest */
-        $productCreateRequest = $this->serializer->deserialize(
-            $request->getContent(),
-            ProductCreateRequest::class,
-            'json'
-        );
+        return $this->fullValidation($this->validator->validate($productCreateRequest), $productCreateRequest->title);
+    }
 
-        $violations = $this->validator->validate($productCreateRequest);
+    protected function validateUpdateRequest(ProductUpdateRequest $productUpdateRequest): ?JsonResponse
+    {
+        return $this->fullValidation($this->validator->validate($productUpdateRequest), $productUpdateRequest->title);
+    }
+
+    protected function fullValidation(ConstraintViolationListInterface $violations, ?string $title): ?JsonResponse
+    {
         if (count($violations) > 0) {
             $errors = [];
             foreach ($violations as $error) {
                 $errors[$error->getPropertyPath()][] = $error->getMessage();
             }
 
-            return new JsonResponse([
-                'message' => 'Validation Failed',
-                'errors' => $errors
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->createValidationFailedResponse($errors);
         }
-        if ($this->productRepository->findOneBy(['title' => $productCreateRequest->title])) {
-            return new JsonResponse([
-                'message' => 'Product with this title already exists.'
-            ],
-                Response::HTTP_UNPROCESSABLE_ENTITY,
-            [
-                'Content-Type' => 'application/json; charset=utf-8'
-            ]);
+        if (null === $title) {
+            return $this->createValidationFailedResponse(['title' => ['Title cannot be null']]);
+        }
+        if ($this->productRepository->findOneByTitle($title)) {
+            return $this->createValidationFailedResponse(['title' => 'Product with this title already exists.']);
         }
 
-        $product = new Product();
-        $product->setTitle($productCreateRequest->title);
-        $product->setPrice($productCreateRequest->price);
+        return null;
+    }
+
+    protected function getJsonResponseFromArrayData(array $arrayPayload, int $responseCode, string $contentType = self::DEFAULT_RESPONSE_CONTENT_TYPE): JsonResponse
+    {
+        return new JsonResponse($arrayPayload, $responseCode, ['Content-Type' => $contentType]);
+    }
+
+    protected function getJsonResponseFromJsonData(string $jsonPayload, int $responseCode, string $contentType = self::DEFAULT_RESPONSE_CONTENT_TYPE): JsonResponse
+    {
+        return new JsonResponse($jsonPayload, $responseCode, ['Content-Type' => $contentType], true);
+    }
+
+    protected function createNotFoundJsonResponse(string $message): JsonResponse
+    {
+        return $this->getJsonResponseFromArrayData(['message' => $message], Response::HTTP_NOT_FOUND);
+    }
+
+    protected function createValidationFailedResponse(array $errors): JsonResponse
+    {
+        return $this->getJsonResponseFromArrayData([
+            'message' => 'Validation Failed',
+            'errors' => $errors
+        ], Response::HTTP_UNPROCESSABLE_ENTITY);
+    }
+
+    protected function create(ProductCreateRequest $productCreateRequest): Product
+    {
+        $product = Product::create($productCreateRequest->title, $productCreateRequest->price);
         $this->entityManager->persist($product);
         $this->entityManager->flush();
 
-        return new JsonResponse([
-            'id' => $product->getId(),
-            'title' => $product->getTitle(),
-            'price' => $product->getPrice(),
-        ],
-            Response::HTTP_CREATED,
-        [
-            'Content-Type' => 'application/json; charset=utf-8',
-        ]);
+        return $product;
     }
 
-    protected function resolveCurrentPage(int $totalProducts, int $page, int $totalPages): int
+    /**
+     * @param Product $product
+     * @return void
+     */
+    protected function delete(Product $product): void
     {
-        if ($totalProducts === 0) {
-            return 1; // If no products, stay on page 1
-        } else if ($page > $totalPages) {
-            return $totalPages; // If page is greater than total pages, return last page
-        }
+        $this->entityManager->remove($product);
+        $this->entityManager->flush();
+    }
 
-        if ($page < 1) {
-            return 1; // If page is less than 1, return first page
-        }
+    /**
+     * @param Product $product
+     * @param ProductUpdateRequest $productUpdateRequest
+     * @return void
+     */
+    protected function update(Product $product, ProductUpdateRequest $productUpdateRequest): void
+    {
+        $product->setTitle($productUpdateRequest->title);
+        $product->setPrice($productUpdateRequest->price);
+        $this->entityManager->flush();
+    }
 
-        return $page;
+    protected function getProductCreateRequest($content): mixed
+    {
+        return $this->serializer->deserialize(
+            $content, ProductCreateRequest::class, 'json'
+        );
+    }
+
+    public function getProductUpdateRequest($content): ProductUpdateRequest
+    {
+        return $this->serializer->deserialize(
+            $content, ProductUpdateRequest::class, 'json'
+        );
     }
 }
