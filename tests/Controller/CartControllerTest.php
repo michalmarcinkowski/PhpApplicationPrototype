@@ -25,7 +25,7 @@ final class CartControllerTest extends WebTestCase
         $this->client = null;
     }
 
-    public function testCreateCart(): void
+    public function testCanCreateCart(): void
     {
         $responseContent = $this->createCartJsonRequest();
 
@@ -38,11 +38,49 @@ final class CartControllerTest extends WebTestCase
 //        $this->assertResponseHeaderSame('Location', sprintf('/api/carts/%d', $responseContent['id']));
     }
 
+    public function testCanGetEmptyCart(): void
+    {
+        $cartCreatedResponse = $this->createCartJsonRequest();
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+        $this->assertArrayHasKey('id', $cartCreatedResponse);
+
+        $cartId = $cartCreatedResponse['id'];
+
+        $getCartRequestResponse = $this->getCartRequest($cartId);
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_OK);
+        $this->assertResponseHeaderSame('Content-Type', 'application/json; charset=utf-8');
+
+        $this->assertSame($cartCreatedResponse['id'], $getCartRequestResponse['id']);
+//        $this->assertArrayHasKey('items', $getCartRequestResponse);
+    }
+
+    public function testCantGetNonExistentCart(): void
+    {
+        $this->getCartRequest(9999);
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+        $this->assertResponseHeaderSame('Content-Type', 'application/json; charset=utf-8');
+    }
+
     protected function createCartJsonRequest(): mixed
     {
         $this->client->request(
             method: 'POST',
             uri: '/api/carts',
+            server: [
+                'HTTP_ACCEPT' => 'application/json',
+            ],
+        );
+
+        return json_decode($this->client->getResponse()->getContent(), true);
+    }
+
+    protected function getCartRequest(mixed $cartId): mixed
+    {
+        $this->client->request(
+            method: 'GET',
+            uri: sprintf('/api/carts/%d', $cartId),
             server: [
                 'HTTP_ACCEPT' => 'application/json',
             ],
