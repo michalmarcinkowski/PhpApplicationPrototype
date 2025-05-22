@@ -17,6 +17,7 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class ProductController extends AbstractController
 {
+    public const DEFAULT_PAGINATION = 3;
     private SerializerInterface $serializer;
     private ValidatorInterface $validator;
     private EntityManagerInterface $entityManager;
@@ -32,6 +33,35 @@ final class ProductController extends AbstractController
         $this->validator = $validator;
         $this->productRepository = $productRepository;
         $this->entityManager = $entityManager;
+    }
+
+    #[Route('/api/products', name: 'app_product_list', methods: ['GET'])]
+    public function list(Request $request): JsonResponse
+    {
+        $limit = self::DEFAULT_PAGINATION;
+        $page = (int) $request->query->get('page', 1);
+
+        $totalProducts = $this->productRepository->count();
+        $totalPages = (int) ceil($totalProducts / $limit);
+
+        $currentPage = $this->resolveCurrentPage($totalProducts, $page, $totalPages);
+
+        $products = $this->productRepository->findBy([], null, $limit, ($currentPage - 1) * $limit);
+
+        $serializedProducts = $this->serializer->serialize($products, 'json');
+        return new JsonResponse([
+            'data' => json_decode($serializedProducts, true),
+            'meta' => [
+                'pagination' => [
+                    'total' => $totalProducts,
+                    'per_page' => $limit,
+                    'current_page' => $currentPage,
+                    'total_pages' => $totalPages,
+            ]]],
+                Response::HTTP_OK,
+            [
+                'Content-Type' => 'application/json; charset=utf-8',
+            ]);
     }
 
     #[Route('/api/products/{id}', name: 'app_product_update', methods: ['PUT'])]
@@ -159,5 +189,20 @@ final class ProductController extends AbstractController
         [
             'Content-Type' => 'application/json; charset=utf-8',
         ]);
+    }
+
+    public function resolveCurrentPage(int $totalProducts, int $page, int $totalPages): int
+    {
+        if ($totalProducts === 0) {
+            return 1; // If no products, stay on page 1
+        } else if ($page > $totalPages) {
+            return $totalPages; // If page is greater than total pages, return last page
+        }
+
+        if ($page < 1) {
+            return 1; // If page is less than 1, return first page
+        }
+
+        return $page;
     }
 }
