@@ -12,7 +12,6 @@ use Doctrine\ORM\EntityManagerInterface;
 
 class ProductControllerListTest extends WebTestCase
 {
-    const DEFAULT_PAGINATION = 3;
     const DEFAULT_NUMBER_OF_PRODUCTS = 5;
     protected ?KernelBrowser $client = null;
     private ?EntityManagerInterface $entityManager = null;
@@ -34,18 +33,6 @@ class ProductControllerListTest extends WebTestCase
         // Close the entity manager to prevent memory leaks
         $this->entityManager->close();
         $this->entityManager = null;
-    }
-
-    /**
-     * Helper method to remove all products from the database.
-     */
-    private function clearProducts(): void
-    {
-        $products = $this->entityManager->getRepository(Product::class)->findAll();
-        foreach ($products as $product) {
-            $this->entityManager->remove($product);
-        }
-        $this->entityManager->flush();
     }
 
     private function createFiveStandardProducts(): void

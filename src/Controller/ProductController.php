@@ -191,7 +191,7 @@ final class ProductController extends AbstractController
         ]);
     }
 
-    public function resolveCurrentPage(int $totalProducts, int $page, int $totalPages): int
+    protected function resolveCurrentPage(int $totalProducts, int $page, int $totalPages): int
     {
         if ($totalProducts === 0) {
             return 1; // If no products, stay on page 1
