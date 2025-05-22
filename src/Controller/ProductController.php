@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Product;
 use App\Repository\ProductRepository;
 use App\Request\ProductCreateRequest;
+use App\Request\ProductUpdateRequest;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -31,6 +32,64 @@ final class ProductController extends AbstractController
         $this->validator = $validator;
         $this->productRepository = $productRepository;
         $this->entityManager = $entityManager;
+    }
+
+    #[Route('/api/products/{id}', name: 'app_product_update', methods: ['PUT'])]
+    public function update(int $id, Request $request): JsonResponse
+    {
+        $product = $this->productRepository->find($id);
+        if (!$product) {
+            return new JsonResponse([
+                'message' => 'Product not found.'
+            ],
+                Response::HTTP_NOT_FOUND,
+            [
+                'Content-Type' => 'application/json; charset=utf-8'
+            ]);
+        }
+
+        /** @var ProductUpdateRequest $productUpdateRequest */
+        $productUpdateRequest = $this->serializer->deserialize(
+            $request->getContent(),
+            ProductUpdateRequest::class,
+            'json'
+        );
+
+        $violations = $this->validator->validate($productUpdateRequest);
+        if (count($violations) > 0) {
+            $errors = [];
+            foreach ($violations as $error) {
+                $errors[$error->getPropertyPath()][] = $error->getMessage();
+            }
+
+            return new JsonResponse([
+                'message' => 'Validation Failed',
+                'errors' => $errors
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if ($this->productRepository->findOneBy(['title' => $productUpdateRequest->title])) {
+            return new JsonResponse([
+                'message' => 'Product with this title already exists.'
+            ],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+                [
+                    'Content-Type' => 'application/json; charset=utf-8'
+                ]);
+        }
+
+        $product->setTitle($productUpdateRequest->title);
+        $product->setPrice($productUpdateRequest->price);
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'id' => $product->getId(),
+            'title' => $product->getTitle(),
+            'price' => $product->getPrice(),
+        ],
+            Response::HTTP_OK,
+        [
+            'Content-Type' => 'application/json; charset=utf-8',
+        ]);
     }
 
     #[Route('/api/products/{id}', name: 'app_product_delete', methods: ['DELETE'])]
@@ -74,6 +133,15 @@ final class ProductController extends AbstractController
                 'message' => 'Validation Failed',
                 'errors' => $errors
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if ($this->productRepository->findOneBy(['title' => $productCreateRequest->title])) {
+            return new JsonResponse([
+                'message' => 'Product with this title already exists.'
+            ],
+                Response::HTTP_UNPROCESSABLE_ENTITY,
+            [
+                'Content-Type' => 'application/json; charset=utf-8'
+            ]);
         }
 
         $product = new Product();
