@@ -111,3 +111,99 @@ curl -X DELETE http://0.0.0.0:5000/api/products/1
 This documentation provides a clear overview of how to interact with the product management endpoints in your API.  
 *Adjustments may be necessary depending on specific implementation details.*
 ```
+
+# Cart API Documentation
+
+## Base URL
+
+```
+/api/carts
+```
+
+---
+
+## Endpoints
+
+### 1. Create Cart
+
+- **Endpoint:** `POST /api/carts/`
+- **Description:** Creates a new cart.
+
+#### Response
+
+- **201 Created**: On success, returns the created cart data including ID.
+
+---
+
+### 2. Get Cart
+
+- **Endpoint:** `GET /api/carts/{id}`
+- **Description:** Retrieves the specified cart by ID.
+
+#### Response
+
+- **200 OK**: On success, returns the cart data.
+- **404 Not Found**: If the cart does not exist.
+
+---
+
+### 3. Add Item to Cart
+
+- **Endpoint:** `POST /api/carts/{cartId}/items/`
+- **Description:** Adds an item to the specified cart.
+
+#### Request Body
+
+```
+{
+  "cartId": integer,    // ID of the cart (required)
+  "productId": integer, // ID of the product to add (required)
+  "quantity": integer   // Quantity of the product (required, must be between 1 and 10)
+}
+```
+
+#### Response
+
+- **201 Created**: On success, returns the updated cart data.
+- **422 Unprocessable Entity**: On validation errors.
+
+---
+
+## Validation Errors
+
+Any endpoint that involves adding to the cart will return `422 Unprocessable Entity` with a structure like:
+
+```
+{
+  "message": "Validation Failed",
+  "errors": {
+    "field_name": ["Error message for this field."]
+  }
+}
+```
+
+---
+
+## Example Requests
+
+### Create Cart Example
+
+```
+curl -X POST http://0.0.0.0:5000/api/carts/ -H "Content-Type: application/json"
+```
+
+### Get Cart Example
+
+```
+curl -X GET http://0.0.0.0:5000/api/carts/1
+```
+
+### Add Item to Cart Example
+
+```
+curl -X POST http://0.0.0.0:5000/api/carts/1/items/ \
+  -H "Content-Type: application/json" \
+  -d '{"cartId": 1, "productId": 2, "quantity": 3}'
+```
+```
+
