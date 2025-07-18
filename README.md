@@ -110,7 +110,7 @@ curl -X DELETE http://0.0.0.0:5000/api/products/1
 
 This documentation provides a clear overview of how to interact with the product management endpoints in your API.  
 *Adjustments may be necessary depending on specific implementation details.*
-```
+
 
 # Cart API Documentation
 
